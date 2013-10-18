@@ -218,9 +218,9 @@ def validate_xml(xml_string, xml_binding=t.VID_TAXII_XML_10):
     etree_xml = etree.parse(f, get_xml_parser())
     package_dir, package_filename = os.path.split(__file__)
     if xml_binding == t.VID_TAXII_XML_10:
-        schema_file = os.path.join(package_dir, "xsd", "TAXII_XMLMessageBinding_Schema.xsd")
+        schema_file = os.path.join(package_dir, "xsd", "TAXII_XMLMessageBinding_Schema_10.xsd")
     elif xml_binding == t.VID_TAXII_XML_11:
-        pass#schema_file = os.path.join(package_dir, "xsd", "TAXII_XMLMessageBinding_Schema.xsd")#TODO: Update this once the schema is released
+        schema_file = os.path.join(package_dir, "xsd", "TAXII_XMLMessageBinding_Schema_11.xsd")
     else:
         raise Exception("Unsupported Content Binding ID: %s" % xml_binding)#TODO: Should this use the _do_check function? If so, go through all the code and apply the change.
     taxii_schema_doc = etree.parse(schema_file, get_xml_parser())
@@ -442,7 +442,7 @@ class BaseNonMessage(object):
         if xml_binding == t.VID_TAXII_XML_10:
             return cls.from_etree_10(src_etree)
         elif xml_binding == t.VID_TAXII_XML_11:
-            return cls.from_to_etree_11(src_etree)
+            return cls.from_etree_11(src_etree)
         else:
             raise Exception("Unsupported Message Binding: " % xml_binding)
     
@@ -610,14 +610,6 @@ class DeliveryParameters(BaseNonMessage):
             _do_check(value, 'content_bindings', regex_tuple=_uri_regex)
             self._content_bindings = value
 
-        #def to_etree(self, xml_binding=t.VID_TAXII_XML_10):
-        #    if xml_binding == t.VID_TAXII_XML_10:
-        #        return self.to_etree_10()
-        #    elif xml_binding == t.VID_TAXII_XML_11:
-        #        return self.to_etree_11()
-        #    else:
-        #        raise Exception("Unsupported Message Binding ID: %s" % xml_binding)
-
         def to_etree_10(self):
             xml = etree.Element('{%s}Push_Parameters' % ns_map['taxii'])
 
@@ -638,6 +630,9 @@ class DeliveryParameters(BaseNonMessage):
                 cb.text = binding
             return xml
         
+        def to_etree_11(self):
+            return self.to_etree_10()
+        
         def to_dict_10(self):
             d = {}
 
@@ -655,6 +650,9 @@ class DeliveryParameters(BaseNonMessage):
                 d['content_bindings'].append(binding)
 
             return d
+        
+        def to_dict_11(self):
+            return to_dict_10()
 
         def __eq__(self, other, debug=False):
             if not self._checkPropertiesEq(other, ['inbox_protocol', 'address', 'deliver_message_binding'], debug):
@@ -690,11 +688,18 @@ class DeliveryParameters(BaseNonMessage):
                 content_bindings.append(binding.text)
 
             return DeliveryParameters(inbox_protocol, inbox_address, delivery_message_binding, content_bindings)
-
+        
+        @staticmethod
+        def from_etree_11(etree_xml):
+            return DeliveryParameters.from_etree_10(etree_xml)
+        
         @staticmethod
         def from_dict_10(d):
             return DeliveryParameters(**d)
 
+        @staticmethod
+        def from_dict_11(d):
+            return DeliveryParameters.from_dict_10(d)
 
 class TAXIIMessage(BaseNonMessage):
     """Encapsulate properties common to all TAXII Messages (such as headers).
@@ -729,7 +734,7 @@ class TAXIIMessage(BaseNonMessage):
     
     @message_id.setter
     def message_id(self, value):
-        _do_check(value, 'message_id', regex_tuple=_message_id_regex)
+        _do_check(value, 'message_id', regex_tuple=_uri_regex)
         self._message_id = value
     
     @property
@@ -738,7 +743,7 @@ class TAXIIMessage(BaseNonMessage):
     
     @in_response_to.setter
     def in_response_to(self, value):
-        _do_check(value, 'in_response_to', regex_tuple=_message_id_regex, can_be_none=True)
+        _do_check(value, 'in_response_to', regex_tuple=_uri_regex, can_be_none=True)
         self._in_response_to = value
     
     @property
@@ -752,6 +757,30 @@ class TAXIIMessage(BaseNonMessage):
     
     
     def to_etree_10(self):
+        """Creates the base etree for the TAXII Message.
+
+        Message-specific constructs must be added by each Message class. In
+        general, when converting to XML, subclasses should call this method
+        first, then create their specific XML constructs.
+        """
+        root_elt = etree.Element('{%s}%s' % (ns_map['taxii'], self.message_type), nsmap=ns_map)
+        _do_check(self.message_id, 'message_id', regex_tuple=_message_id_regex)
+        root_elt.attrib['message_id'] = str(self.message_id)
+
+        if self.in_response_to is not None:
+            _do_check(self.in_response_to, 'in_response_to', regex_tuple=_message_id_regex)
+            root_elt.attrib['in_response_to'] = str(self.in_response_to)
+
+        if len(self.extended_headers) > 0:
+            eh = etree.SubElement(root_elt, '{%s}Extended_Headers' % ns_map['taxii'])
+
+            for name, value in self.extended_headers.items():
+                h = etree.SubElement(eh, '{%s}Extended_Header' % ns_map['taxii'])
+                h.attrib['name'] = name
+                h.text = value
+        return root_elt
+    
+    def to_etree_11(self):
         """Creates the base etree for the TAXII Message.
 
         Message-specific constructs must be added by each Message class. In
@@ -773,15 +802,25 @@ class TAXIIMessage(BaseNonMessage):
                 h.text = value
         return root_elt
 
-    #def to_xml(self):
-    #    """Convert a message to XML.
-    #
-    #    Subclasses shouldn't implement this method, as it is mainly a wrapper
-    #    for cls.to_etree.
-    #    """
-    #    return etree.tostring(self.to_etree())
-
     def to_dict_10(self):
+        """Create the base dictionary for the TAXII Message.
+
+        Message-specific constructs must be added by each Message class. In
+        general, when converting to dictionary, subclasses should call this
+        method first, then create their specific dictionary constructs.
+        """
+        d = {}
+        d['message_type'] = self.message_type
+        _do_check(self.message_id, 'message_id', regex_tuple=_message_id_regex)
+        d['message_id'] = self.message_id
+        if self.in_response_to is not None:
+            _do_check(self.in_response_to, 'in_response_to', regex_tuple=_message_id_regex)
+            d['in_response_to'] = self.in_response_to
+        d['extended_headers'] = self.extended_headers
+
+        return d
+    
+    def to_dict_11(self):
         """Create the base dictionary for the TAXII Message.
 
         Message-specific constructs must be added by each Message class. In
@@ -796,10 +835,7 @@ class TAXIIMessage(BaseNonMessage):
         d['extended_headers'] = self.extended_headers
 
         return d
-
-    #def to_json_10(self):
-    #    return json.dumps(self.to_dict_10())
-
+    
     def __eq__(self, other, debug=False):
         if not isinstance(other, TAXIIMessage):
             raise ValueError('Not comparing two TAXII Messages! (%s, %s)' % (self.__class__.__name__, other.__class__.__name__))
@@ -825,7 +861,45 @@ class TAXIIMessage(BaseNonMessage):
 
         #Get the message ID
         message_id = src_etree.xpath('/taxii:*/@message_id', namespaces=ns_map)[0]
+        _do_check(message_id, 'message_id', regex_tuple=_message_id_regex)
+        
+        #Get in response to, if present
+        in_response_to = None
+        in_response_tos = src_etree.xpath('/taxii:*/@in_response_to', namespaces=ns_map)
+        if len(in_response_tos) > 0:
+            in_response_to = in_response_tos[0]
+            _do_check(in_response_to, 'in_response_to', regex_tuple=_message_id_regex)
 
+        #Get the Extended headers
+        extended_header_list = src_etree.xpath('/taxii:*/taxii:Extended_Headers/taxii:Extended_Header', namespaces=ns_map)
+        extended_headers = {}
+        for header in extended_header_list:
+            eh_name = header.xpath('./@name')[0]
+            eh_value = header.text
+            extended_headers[eh_name] = eh_value
+        
+        return cls(message_id, 
+                   in_response_to, 
+                   extended_headers=extended_headers,
+                   **kwargs)
+    
+    @classmethod
+    def from_etree_11(cls, src_etree, **kwargs):
+        """Pulls properties of a TAXII Message from an etree.
+
+        Message-specific constructs must be pulled by each Message class. In
+        general, when converting from etree, subclasses should call this method
+        first, then parse their specific XML constructs.
+        """
+
+        #Get the message type
+        message_type = src_etree.tag[53:]
+        if message_type != cls.message_type:
+            raise ValueError('%s != %s' % (message_type, cls.message_type))
+
+        #Get the message ID
+        message_id = src_etree.xpath('/taxii:*/@message_id', namespaces=ns_map)[0]
+        
         #Get in response to, if present
         in_response_to = None
         in_response_tos = src_etree.xpath('/taxii:*/@in_response_to', namespaces=ns_map)
@@ -845,23 +919,30 @@ class TAXIIMessage(BaseNonMessage):
                    extended_headers=extended_headers,
                    **kwargs)
 
-    #@classmethod
-    #def from_xml(cls, xml):
-    #    """Parse a Message from XML.
-    #
-    #    Subclasses shouldn't implemnet this method, as it is mainly a wrapper
-    #    for cls.from_etree.
-    #    """
-    #    if isinstance(xml, basestring):
-    #        f = StringIO.StringIO(xml)
-    #    else:
-    #        f = xml
-    #
-    #    etree_xml = etree.parse(f, get_xml_parser()).getroot()
-    #    return cls.from_etree(etree_xml)
-
     @classmethod
     def from_dict_10(cls, d, **kwargs):
+        """Pulls properties of a TAXII Message from a dictionary.
+
+        Message-specific constructs must be pulled by each Message class. In
+        general, when converting from dictionary, subclasses should call this
+        method first, then parse their specific dictionary constructs.
+        """
+        message_type = d['message_type']
+        if message_type != cls.message_type:
+            raise ValueError('%s != %s' % (message_type, cls.message_type))
+        message_id = d['message_id']
+        _do_check(message_id, 'message_id', regex_tuple=_message_id_regex)
+        extended_headers = d['extended_headers']
+        in_response_to = d.get('in_response_to')
+        _do_check(in_response_to, 'in_response_to', regex_tuple=_message_id_regex, can_be_none=True)
+        
+        return cls(message_id, 
+                   in_response_to, 
+                   extended_headers=extended_headers, 
+                   **kwargs)
+
+    @classmethod
+    def from_dict_11(cls, d, **kwargs):
         """Pulls properties of a TAXII Message from a dictionary.
 
         Message-specific constructs must be pulled by each Message class. In
@@ -879,7 +960,6 @@ class TAXIIMessage(BaseNonMessage):
                    in_response_to, 
                    extended_headers=extended_headers, 
                    **kwargs)
-
     #@classmethod
     #def from_json_10(cls, json_string):
     #    return cls.from_dict_10(json.loads(json_string))
@@ -969,7 +1049,10 @@ class ContentBlock(BaseNonMessage):
             p.text = self.padding
 
         return block
-
+    
+    def to_etree_11(self):
+        return self.to_etree_10()
+    
     def to_dict_10(self):
         block = {}
         block['content_binding'] = self.content_binding
@@ -987,8 +1070,8 @@ class ContentBlock(BaseNonMessage):
 
         return block
 
-    #def to_json_10(self):
-    #    return json.dumps(self.to_dict_10())
+    def to_dict_11(self):
+        return self.to_dict_10()
 
     def __eq__(self, other, debug=False):
         if not self._checkPropertiesEq(other, ['content_binding', 'timestamp_label', 'padding'], debug):
@@ -1022,6 +1105,10 @@ class ContentBlock(BaseNonMessage):
         return ContentBlock(**kwargs)
 
     @staticmethod
+    def from_etree_11(etree_xml):
+        return ContentBlock.from_etree_10()
+    
+    @staticmethod
     def from_dict_10(d):
         kwargs = {}
         kwargs['content_binding'] = d['content_binding']
@@ -1032,11 +1119,10 @@ class ContentBlock(BaseNonMessage):
         kwargs['content'] = d['content']
 
         return ContentBlock(**kwargs)
-
-    #@classmethod
-    #def from_json_10(cls, json_string):
-    #    return cls.from_dict_10(json.loads(json_string))
-
+    
+    @staticmethod
+    def from_dict_11(d):
+        return ContentBlock.from_dict_10(d)
 
 #### TAXII Message Classes ####
 
@@ -1089,6 +1175,9 @@ class DiscoveryResponse(TAXIIMessage):
         for service_instance in self.service_instances:
             xml.append(service_instance.to_etree_10())
         return xml
+    
+    def to_etree_11(self):
+        return self.to_etree_10()
 
     def to_dict_10(self):
         d = super(DiscoveryResponse, self).to_dict_10()
@@ -1096,9 +1185,9 @@ class DiscoveryResponse(TAXIIMessage):
         for service_instance in self.service_instances:
             d['service_instances'].append(service_instance.to_dict_10())
         return d
-
-    #def to_json(self):
-    #    return json.dumps(self.to_dict())
+    
+    def to_dict_11(self):
+        return self.to_dict_10()
 
     def __eq__(self, other, debug=False):
         if not super(DiscoveryResponse, self).__eq__(other, debug):
@@ -1128,6 +1217,10 @@ class DiscoveryResponse(TAXIIMessage):
             si = DiscoveryResponse.ServiceInstance.from_etree_10(service_instance)
             msg.service_instances.append(si)
         return msg
+    
+    @classmethod
+    def from_etree_11(cls, etree_xml):
+        return DiscoveryResponse.from_etree_10(etree_xml)
 
     @classmethod
     def from_dict_10(cls, d):
@@ -1138,6 +1231,10 @@ class DiscoveryResponse(TAXIIMessage):
             si = DiscoveryResponse.ServiceInstance.from_dict_10(service_instance)
             msg.service_instances.append(si)
         return msg
+    
+    @classmethod
+    def from_dict_11(cls, d):
+        return DiscoveryResponse.from_dict_10(d)
 
     class ServiceInstance(BaseNonMessage):
 
@@ -1273,6 +1370,9 @@ class DiscoveryResponse(TAXIIMessage):
                 message.text = self.message
 
             return si
+        
+        def to_etree_11(self):
+            return self.to_etree_10()
 
         def to_dict_10(self):
             d = {}
@@ -1285,6 +1385,9 @@ class DiscoveryResponse(TAXIIMessage):
             d['available'] = self.available
             d['message'] = self.message
             return d
+        
+        def to_dict_11(self):
+            return self.to_dict_10()
 
         def __eq__(self, other, debug=False):
             if not self._checkPropertiesEq(other, ['service_type', 'services_version', 'protocol_binding', 'service_address', 'available', 'message'], debug):
@@ -1330,10 +1433,18 @@ class DiscoveryResponse(TAXIIMessage):
                 message = message_set[0].text
 
             return DiscoveryResponse.ServiceInstance(service_type, services_version, protocol_binding, service_address, message_bindings, inbox_service_accepted_contents, available, message)
-
+        
+        @staticmethod
+        def from_etree_11(etree_xml):
+            return DiscoveryResponse.ServiceInstance.from_etree_10(etree_xml)
+        
         @staticmethod
         def from_dict_10(d):
             return DiscoveryResponse.ServiceInstance(**d)
+        
+        @staticmethod
+        def from_dict_11(d):
+            return DiscoveryResponse.ServiceInstance.from_dict_10(d)
 
 
 class FeedInformationRequest(TAXIIMessage):
@@ -1385,6 +1496,9 @@ class FeedInformationResponse(TAXIIMessage):
         for feed in self.feed_informations:
             xml.append(feed.to_etree_10())
         return xml
+    
+    def to_etree_11(self):
+        return self.to_etree_10()
 
     def to_dict_10(self):
         d = super(FeedInformationResponse, self).to_dict_10()
@@ -1392,6 +1506,9 @@ class FeedInformationResponse(TAXIIMessage):
         for feed in self.feed_informations:
             d['feed_informations'].append(feed.to_dict_10())
         return d
+    
+    def to_dict_11(self):
+        return self.to_dict_10()
 
     def __eq__(self, other, debug=False):
         if not super(FeedInformationResponse, self).__eq__(other, debug):
@@ -1417,12 +1534,20 @@ class FeedInformationResponse(TAXIIMessage):
         return msg
 
     @classmethod
+    def from_etree_11(cls, etree_xml):
+        return FeedInformationResponse.from_etree_10(etree_xml)
+    
+    @classmethod
     def from_dict_10(cls, d):
         msg = super(FeedInformationResponse, cls).from_dict_10(d)
         msg.feed_informations = []
         for feed in d['feed_informations']:
             msg.feed_informations.append(FeedInformationResponse.FeedInformation.from_dict_10(feed))
         return msg
+    
+    @classmethod
+    def from_dict_11(cls, d):
+        return FeedInformationResponse.from_dict_10(d)
 
     class FeedInformation(BaseNonMessage):
 
@@ -2367,7 +2492,7 @@ class StatusMessage(TAXIIMessage):
 class InboxMessage(TAXIIMessage):
     message_type = MSG_INBOX_MESSAGE
 
-    def __init__(self, message_id, in_response_to=None, extended_headers=None, message=None, subscription_information=None, content_blocks=None):
+    def __init__(self, message_id, in_response_to=None, extended_headers=None, message=None, subscription_information=None, content_blocks=None, destination_feed_name=None):
         """Create a new InboxMessage.
 
         Arguments:
@@ -2387,6 +2512,11 @@ class InboxMessage(TAXIIMessage):
             self.content_blocks = []
         else:
             self.content_blocks = content_blocks
+        
+        if destination_feed_name is None:
+            self.destination_feed_name = []
+        else:
+            self.destination_feed_name = destination_feed_name
     
     @TAXIIMessage.in_response_to.setter
     def in_response_to(self, value):
