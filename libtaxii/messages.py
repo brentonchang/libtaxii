@@ -569,10 +569,7 @@ class DeliveryParameters(BaseNonMessage):
             self.inbox_protocol = inbox_protocol
             self.inbox_address = inbox_address
             self.delivery_message_binding = delivery_message_binding
-            if content_bindings is None:
-                self.content_bindings = []
-            else:
-                self.content_bindings = content_bindings
+            self.content_bindings = content_bindings or []
 
         @property
         def inbox_protocol(self):
@@ -722,11 +719,7 @@ class TAXIIMessage(BaseNonMessage):
         """
         self.message_id = message_id
         self.in_response_to = in_response_to
-        if extended_headers is None:
-            self.extended_headers = {}
-        else:
-            self.extended_headers = extended_headers
-
+        self.extended_headers = extended_headers or {}
     
     @property
     def message_id(self):
@@ -1151,10 +1144,7 @@ class DiscoveryResponse(TAXIIMessage):
           service instances that this response contains
         """
         super(DiscoveryResponse, self).__init__(message_id, in_response_to, extended_headers)
-        if service_instances is None:
-            self.service_instances = []
-        else:
-            self.service_instances = service_instances
+        self.service_instances = service_instances or []
     
     @TAXIIMessage.in_response_to.setter
     def in_response_to(self, value):
@@ -1265,10 +1255,7 @@ class DiscoveryResponse(TAXIIMessage):
             self.protocol_binding = protocol_binding
             self.service_address = service_address
             self.message_bindings = message_bindings
-            if inbox_service_accepted_content is None:
-                self.inbox_service_accepted_content = []
-            else:
-                self.inbox_service_accepted_content = inbox_service_accepted_content
+            self.inbox_service_accepted_content = inbox_service_accepted_content or []
             self.available = available
             self.message = message
 
@@ -1472,10 +1459,7 @@ class FeedInformationResponse(TAXIIMessage):
           FeedInformation objects to be contained in this response
         """
         super(FeedInformationResponse, self).__init__(message_id, in_response_to, extended_headers=extended_headers)
-        if feed_informations is None:
-            self.feed_informations = []
-        else:
-            self.feed_informations = feed_informations
+        self.feed_informations = feed_informations or []
     
     @TAXIIMessage.in_response_to.setter
     def in_response_to(self, value):
@@ -1580,20 +1564,9 @@ class FeedInformationResponse(TAXIIMessage):
             self.available = available
             self.feed_description = feed_description
             self.supported_contents = supported_contents
-            if push_methods is None:
-                self.push_methods = []
-            else:
-                self.push_methods = push_methods
-
-            if polling_service_instances is None:
-                self.polling_service_instances = []
-            else:
-                self.polling_service_instances = polling_service_instances
-
-            if subscription_methods is None:
-                self.subscription_methods = []
-            else:
-                self.subscription_methods = subscription_methods
+            self.push_methods = push_methods or []
+            self.polling_service_instances = polling_service_instances or []
+            self.subscription_methods = subscription_methods or []
 
         @property
         def feed_name(self):
@@ -2035,10 +2008,7 @@ class PollRequest(TAXIIMessage):
         self.exclusive_begin_timestamp_label = exclusive_begin_timestamp_label
         self.inclusive_end_timestamp_label = inclusive_end_timestamp_label
         self.subscription_id = subscription_id
-        if content_bindings is None:
-            self.content_bindings = []
-        else:
-            self.content_bindings = content_bindings
+        self.content_bindings = content_bindings or []
 
     @TAXIIMessage.in_response_to.setter
     def in_response_to(self, value):
@@ -2228,10 +2198,7 @@ class PollResponse(TAXIIMessage):
         self.inclusive_begin_timestamp_label = inclusive_begin_timestamp_label
         self.subscription_id = subscription_id
         self.message = message
-        if content_blocks is None:
-            self.content_blocks = []
-        else:
-            self.content_blocks = content_blocks
+        self.content_blocks = content_blocks or []
     
     @TAXIIMessage.in_response_to.setter
     def in_response_to(self, value):
@@ -2508,15 +2475,8 @@ class InboxMessage(TAXIIMessage):
         super(InboxMessage, self).__init__(message_id, extended_headers=extended_headers)
         self.subscription_information = subscription_information
         self.message = message
-        if content_blocks is None:
-            self.content_blocks = []
-        else:
-            self.content_blocks = content_blocks
-        
-        if destination_feed_name is None:
-            self.destination_feed_name = []
-        else:
-            self.destination_feed_name = destination_feed_name
+        self.content_blocks = content_blocks or []
+        self.destination_feed_name = destination_feed_name or []
     
     @TAXIIMessage.in_response_to.setter
     def in_response_to(self, value):
@@ -2862,10 +2822,7 @@ class ManageFeedSubscriptionResponse(TAXIIMessage):
         super(ManageFeedSubscriptionResponse, self).__init__(message_id, in_response_to, extended_headers=extended_headers)
         self.feed_name = feed_name
         self.message = message
-        if subscription_instances is None:
-            self.subscription_instances = []
-        else:
-            self.subscription_instances = subscription_instances
+        self.subscription_instances = subscription_instances or []
 
     @TAXIIMessage.in_response_to.setter
     def in_response_to(self, value):
@@ -2978,15 +2935,8 @@ class ManageFeedSubscriptionResponse(TAXIIMessage):
               Subscription.
             """
             self.subscription_id = subscription_id
-            if delivery_parameters is None:
-                self.delivery_parameters = []
-            else:
-                self.delivery_parameters = delivery_parameters
-
-            if poll_instances is None:
-                self.poll_instances = []
-            else:
-                self.poll_instances = poll_instances
+            self.delivery_parameters = delivery_parameters or []
+            self.poll_instances = poll_instances or []
         
         @property
         def subscription_id(self):
@@ -3096,10 +3046,7 @@ class ManageFeedSubscriptionResponse(TAXIIMessage):
             """
             self.poll_protocol = poll_protocol
             self.poll_address = poll_address
-            if poll_message_bindings is None:
-                self.poll_message_bindings = []
-            else:
-                self.poll_message_bindings = poll_message_bindings
+            self.poll_message_bindings = poll_message_bindings or []
 
         @property
         def poll_protocol(self):
