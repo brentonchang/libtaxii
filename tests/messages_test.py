@@ -14,6 +14,7 @@
 
 import datetime
 import StringIO
+import inspect
 
 from dateutil.tz import tzutc
 from lxml import etree
@@ -118,6 +119,23 @@ def contentblock_tests(content_block, taxii_version='1.0'):
         raise Exception('Test #3 failed - block_from_json != block_from_dict')
 
     print '***** All tests completed!'
+
+required_methods = ['to_etree_10','to_etree_11', 'from_etree_10', 'from_etree_11',
+                    'to_dict_10','to_dict_11','from_dict_10', 'from_dict_11']
+
+exceptions = ['DiscoveryRequest','FeedInformationRequest']
+inspection_list = inspect.getmembers(tm, inspect.isclass)
+for name, obj in inspection_list:
+    if name.startswith('_') or name in exceptions:
+        continue
+    for method in required_methods:
+        try:
+            m = obj.__dict__[method]
+        except KeyError:
+            print '%s not in %s' % (method, name)
+    subclasses = inspect.getmembers(obj, inspect.isclass)
+    #print subclasses
+    inspection_list += subclasses
 
 # BEGIN TAXII 1.0 TESTS. THESE SHOULD NOT CHANGE
 print "STARTING TAXII 1.0 TESTS"
