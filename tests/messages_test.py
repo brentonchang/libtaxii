@@ -69,6 +69,36 @@ def message_tests(taxii_message, taxii_version='1.0'):
 
     print '***** All tests completed!'
 
+#Attempt to serialize the message as TAXII 1.0.
+#This method is used to test TAXII messages that should fail when serializing to TAXII 1.0
+# because they use new, previously disallowed features.
+# e.g., TAXII 1.1 now allows URI characters in message IDs, but in TAXII 1.0 only
+# numbers were allowed. A message with an ID containing non-numeric character(s)
+# in the message ID would be used in this method
+def serialize_10(message):
+    fail_xml = False
+    fail_dict = False
+    fail_json = False
+    try:
+        message.to_xml(t.VID_TAXII_XML_10)
+        print "Error! Serialize to XML 1.0 succeeded!"
+    except:
+        fail_xml = True
+    try:
+        message.to_dict(t.VID_TAXII_SERVICES_10)
+        print "Error! Serialize to dictionary 1.0 succeeded!"
+    except:
+        fail_dict = True
+    try:
+        message.to_json(t.VID_CERT_EU_JSON_10)
+        print "Error! Serialize to json 1.0 succeeded!"
+    except:
+        fail_json = True
+    
+    if fail_xml and fail_dict and fail_json:
+        print "All serializations correctly failed!"
+    else:
+        print "Error! Not all serializations correctly failed for %s!" % message.message_type
 
 def contentblock_tests(content_block, taxii_version='1.0'):
     """
@@ -360,7 +390,7 @@ contentblock_tests(cb5)
 print "STARTING TAXII 1.1 TESTS"
 ## Discovery Request
 discovery_request1 = tm.DiscoveryRequest(
-        message_id=tm.generate_message_id(),  # Required
+        message_id='1x',  # Required - uses new URI formatted message ID
         extended_headers={'ext_header1': 'value1', 'ext_header2': 'value2'})  # Optional.
         #Extended headers are optional for every message type, but only demonstrated here
 
@@ -383,15 +413,15 @@ service_instance1 = tm.DiscoveryResponse.ServiceInstance(
 
 #Create the discovery response
 discovery_response1 = tm.DiscoveryResponse(
-        message_id=tm.generate_message_id(),  # Required
-        in_response_to=tm.generate_message_id(),  # Required. This should be the ID of the corresponding request
+        message_id='1x',  # Required - uses new message ID format
+        in_response_to='2x',  # Required. This should be the ID of the corresponding request - uses new message ID format
         service_instances=[service_instance1])  # Optional.
 
 message_tests(discovery_response1, '1.1')
 
 ##Feed Information Request
 feed_information_request1 = tm.FeedInformationRequest(
-        message_id=tm.generate_message_id())  # Required
+        message_id='3x')  # Required - uses new message ID format
 
 message_tests(feed_information_request1, '1.1')
 
@@ -421,8 +451,8 @@ feed1 = tm.FeedInformationResponse.FeedInformation(
         subscription_methods=[subscription_service1])  # Optional
 
 feed_information_response1 = tm.FeedInformationResponse(
-        message_id=tm.generate_message_id(),  # Required
-        in_response_to=tm.generate_message_id(),  # Required. This should be the ID of the corresponding request
+        message_id='x1',  # Required  - uses new message ID format
+        in_response_to='x2',  # Required. This should be the ID of the corresponding request  - uses new message ID format
         feed_informations=[feed1])  # Optional
 
 message_tests(feed_information_response1, '1.1')
@@ -430,7 +460,7 @@ message_tests(feed_information_response1, '1.1')
 ## Poll Request
 
 poll_request1 = tm.PollRequest(
-        message_id=tm.generate_message_id(),  # Required
+        message_id='9x',  # Required
         feed_name='TheFeedToPoll',  # Required
         subscription_id='SubsId002',  # Optional
         exclusive_begin_timestamp_label=datetime.datetime.now(tzutc()),  # Optional - Absence means 'no lower bound'
@@ -456,11 +486,11 @@ string_content_block1 = tm.ContentBlock(
         timestamp_label=datetime.datetime.now(tzutc()))  # Optional
 
 poll_response1 = tm.PollResponse(
-        message_id=tm.generate_message_id(),  # Required
-        in_response_to=tm.generate_message_id(),  # Required - this should be the ID of the corresponding request
+        message_id='9x',  # Required
+        in_response_to='x9',  # Required - this should be the ID of the corresponding request
         feed_name='FeedName',  # Required
         inclusive_end_timestamp_label=datetime.datetime.now(tzutc()),  # Required
-        inclusive_begin_timestamp_label=datetime.datetime.now(tzutc()),  # Optional
+        exclusive_begin_timestamp_label=datetime.datetime.now(tzutc()),  # Optional
         subscription_id='SubsId001',  # Optional
         message='This is a message.',  # Optional
         content_blocks=[xml_content_block1])  # Optional
@@ -472,7 +502,7 @@ poll_response2 = tm.PollResponse(
         in_response_to=tm.generate_message_id(),  # Required - this should be the ID of the corresponding request
         feed_name='FeedName',  # Required
         inclusive_end_timestamp_label=datetime.datetime.now(tzutc()),  # Required
-        inclusive_begin_timestamp_label=datetime.datetime.now(tzutc()),  # Optional
+        exclusive_begin_timestamp_label=datetime.datetime.now(tzutc()),  # Optional
         subscription_id='SubsId001',  # Optional
         message='This is a message.',  # Optional
         content_blocks=[string_content_block1])  # Optional
@@ -482,9 +512,9 @@ message_tests(poll_response2, '1.1')
 ## Status Message
 
 status_message1 = tm.StatusMessage(
-        message_id=tm.generate_message_id(),  # Required
-        in_response_to=tm.generate_message_id(),  # Required. Should be the ID of the corresponding request
-        status_type=tm.ST_SUCCESS,  # Required
+        message_id='1x',  # Required - uses new URI formatted message ID
+        in_response_to='1x',  # Required. Should be the ID of the corresponding request - uses new URI formatted message ID
+        status_type=tm.ST_NETWORK_ERROR,  # Required - uses new network error
         status_detail='Machine-processable info here!',  # May be optional or not allowed, depending on status_type
         message='This is a message.')  # Optional
 
@@ -495,7 +525,7 @@ message_tests(status_message1, '1.1')
 subscription_information1 = tm.InboxMessage.SubscriptionInformation(
         feed_name='SomeFeedName',  # Required
         subscription_id='SubsId021',  # Required
-        inclusive_begin_timestamp_label=datetime.datetime.now(tzutc()),  # Optional - Absence means 'no lower bound'
+        exclusive_begin_timestamp_label=datetime.datetime.now(tzutc()),  # Optional - Absence means 'no lower bound'
         inclusive_end_timestamp_label=datetime.datetime.now(tzutc()))  # Optional - Absence means 'no upper bound'
 
 inbox_message1 = tm.InboxMessage(
@@ -523,13 +553,22 @@ delivery_parameters1 = tm.DeliveryParameters(
         content_bindings=[t.CB_STIX_XML_10])  # Optional - absence means accept all content bindings
 
 manage_feed_subscription_request1 = tm.ManageFeedSubscriptionRequest(
-        message_id=tm.generate_message_id(),  # Required
+        message_id='7x',  # Required
         feed_name='SomeFeedName',   # Required
-        action=tm.ACT_UNSUBSCRIBE,  # Required
+        action=tm.ACT_PAUSE,  # Required
         subscription_id='SubsId056',  # Required for unsubscribe, prohibited otherwise
         delivery_parameters=delivery_parameters1)  # Required
 
 message_tests(manage_feed_subscription_request1, '1.1')
+
+manage_feed_subscription_request2 = tm.ManageFeedSubscriptionRequest(
+        message_id='7x',  # Required
+        feed_name='SomeFeedName',   # Required
+        action=tm.ACT_RESUME,  # Required
+        subscription_id='SubsId056',  # Required for unsubscribe, prohibited otherwise
+        delivery_parameters=delivery_parameters1)  # Required
+
+message_tests(manage_feed_subscription_request2, '1.1')
 
 ## Manage Feed Subscription Response
 
@@ -544,8 +583,8 @@ subscription_instance1 = tm.ManageFeedSubscriptionResponse.SubscriptionInstance(
         poll_instances=[poll_instance1])  # Required if action was polling subscription. Optional otherwise
 
 manage_feed_subscription_response1 = tm.ManageFeedSubscriptionResponse(
-        message_id=tm.generate_message_id(),  # Required
-        in_response_to=tm.generate_message_id(),  # Required - Should be the ID of the corresponding request
+        message_id='3x',  # Required
+        in_response_to='x3',  # Required - Should be the ID of the corresponding request
         feed_name='Feed001',  # Required
         message='This is a message',  # Optional
         subscription_instances=[subscription_instance1])  # Required
@@ -573,3 +612,97 @@ contentblock_tests(cb4)
 cb5 = tm.ContentBlock(content_binding=t.CB_STIX_XML_10,
                       content='Something thats not XML <xml/>')
 contentblock_tests(cb5, '1.1')
+#END TAXII 1.1 TESTS
+
+##BEGIN FAILURE TESTS
+# Each of these tests should fail - they all involve putting TAXII 1.1 args and attempting to serialize to
+# TAXII 1.0
+
+#Test new status message features
+status_message1 = tm.StatusMessage(
+        message_id='1x',  #non-numeric IDs are new in 1.1
+        in_response_to=tm.generate_message_id(),
+        status_type=tm.ST_SUCCESS)
+serialize_10(status_message1)
+
+status_message2 = tm.StatusMessage(
+        message_id='1',  
+        in_response_to='1x', #non-numeric IDs are new in 1.1
+        status_type=tm.ST_SUCCESS)
+serialize_10(status_message2)
+
+status_message3 = tm.StatusMessage(
+        message_id='1',  
+        in_response_to=tm.generate_message_id(),
+        status_type=tm.ST_NETWORK_ERROR)#Network error is new in 1.1
+serialize_10(status_message3)
+
+#Discovery Request is unchanged aside from Message ID, which was already tested in StatusMessage
+#Discovery Response is unchanged aside from Message ID/in response to, which was already tested in StatusMessage
+#Feed Information Request is unchanged aside from Message ID, which was already tested in StatusMessage
+#Feed Information Response is unchanged aside from Message ID/in response to, which was already tested in StatusMessage
+
+#Test new manage feed subscription request features
+manage_feed_subscription_request1 = tm.ManageFeedSubscriptionRequest(
+        message_id=tm.generate_message_id(),
+        feed_name='SomeFeedName',
+        action=tm.ACT_PAUSE,  # Pause is new in 1.1
+        subscription_id='SubsId056',
+        delivery_parameters=delivery_parameters1)
+serialize_10(manage_feed_subscription_request1)
+
+manage_feed_subscription_request2 = tm.ManageFeedSubscriptionRequest(
+        message_id=tm.generate_message_id(),
+        feed_name='SomeFeedName', 
+        action=tm.ACT_RESUME,  # Resume is new in 1.1
+        subscription_id='SubsId056',
+        delivery_parameters=delivery_parameters1)
+serialize_10(manage_feed_subscription_request2)
+
+#Manage Feed Subscription Response is unchanged aside from Message ID/in response to, which was already tested in StatusMessage
+#Poll Request is unchanged aside from Message ID, which was already tested in StatusMessage
+
+#Test new poll response features
+poll_response1 = tm.PollResponse(
+        message_id=tm.generate_message_id(),
+        in_response_to=tm.generate_message_id(),
+        feed_name='FeedName',
+        exclusive_begin_timestamp_label=datetime.datetime.now(tzutc()),#Exclusive timestamp label is new in 1.1
+        inclusive_end_timestamp_label=datetime.datetime.now(tzutc()),
+        subscription_id='SubsId001',
+        message='This is a message.',
+        content_blocks=[xml_content_block1])
+
+serialize_10(poll_response1)
+
+#Test new Inbox Message features
+
+subscription_information1 = tm.InboxMessage.SubscriptionInformation(
+        feed_name='SomeFeedName',
+        subscription_id='SubsId021',
+        exclusive_begin_timestamp_label=datetime.datetime.now(tzutc()),#Exclusive begin timestamp label is new in TAXII 1.1
+        inclusive_end_timestamp_label=datetime.datetime.now(tzutc()))
+
+inbox_message1 = tm.InboxMessage(
+        message_id=tm.generate_message_id(),
+        message='This is a message.',
+        subscription_information=subscription_information1,
+        content_blocks=[xml_content_block1])  #Contains exclusive begin timestamp label
+
+serialize_10(inbox_message1)
+
+inbox_message2 = tm.InboxMessage(
+        message_id=tm.generate_message_id(),
+        message='This is a message.',
+        destination_feed_names=['test1','test2'])#Destination feed name is new in TAXII 1.1
+
+serialize_10(inbox_message2)
+
+
+
+
+
+
+
+
+
