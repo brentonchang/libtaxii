@@ -78,6 +78,9 @@ ST_UNSUPPORTED_PROTOCOL = 'UNSUPPORTED_PROTOCOL_BINDING'
 # Tuple of all status types
 ST_TYPES = (ST_BAD_MESSAGE, ST_DENIED, ST_FAILURE, ST_NETWORK_ERROR, ST_NOT_FOUND, ST_POLLING_UNSUPPORTED, ST_RETRY, ST_SUCCESS,
             ST_UNAUTHORIZED, ST_UNSUPPORTED_MESSAGE_BINDING, ST_UNSUPPORTED_CONTENT_BINDING, ST_UNSUPPORTED_PROTOCOL)
+#Tuple of status type in TAXII 1.0
+ST_TYPES_10 = (ST_BAD_MESSAGE, ST_DENIED, ST_FAILURE, ST_NOT_FOUND, ST_POLLING_UNSUPPORTED, ST_RETRY, ST_SUCCESS,
+            ST_UNAUTHORIZED, ST_UNSUPPORTED_MESSAGE_BINDING, ST_UNSUPPORTED_CONTENT_BINDING, ST_UNSUPPORTED_PROTOCOL)
 
 #: Constant identifying an Action of Subscribe
 ACT_SUBSCRIBE = 'SUBSCRIBE'
@@ -91,6 +94,8 @@ ACT_RESUME = 'RESUME'
 ACT_STATUS = 'STATUS'
 # Tuple of all actions
 ACT_TYPES = (ACT_SUBSCRIBE, ACT_UNSUBSCRIBE, ACT_STATUS, ACT_PAUSE, ACT_RESUME)
+# Tuple of actions in TAXII 1.0
+ACT_TYPES_10 = (ACT_SUBSCRIBE, ACT_UNSUBSCRIBE, ACT_STATUS)
 
 #Service types
 #: Constant identifying a Service Type of Inbox
@@ -113,7 +118,7 @@ ns_map = {
 _RegexTuple = collections.namedtuple('_RegexTuple', ['regex','title'])
 #URI regex per http://tools.ietf.org/html/rfc3986
 _uri_regex = _RegexTuple("(([^:/?#]+):)?(//([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?", "URI Format")
-_message_id_regex = _RegexTuple("[0-9]+", "Numbers only")
+_message_id_regex = _RegexTuple("^[0-9]+$", "Numbers only")
 
 _none_error = "%s is not allowed to be None and the provided value was None"
 _type_error = "%s must be of type %s. The incorrect value was of type %s"
@@ -649,7 +654,7 @@ class DeliveryParameters(BaseNonMessage):
             return d
         
         def to_dict_11(self):
-            return to_dict_10()
+            return self.to_dict_10()
 
         def __eq__(self, other, debug=False):
             if not self._checkPropertiesEq(other, ['inbox_protocol', 'address', 'deliver_message_binding'], debug):
@@ -1099,7 +1104,7 @@ class ContentBlock(BaseNonMessage):
 
     @staticmethod
     def from_etree_11(etree_xml):
-        return ContentBlock.from_etree_10()
+        return ContentBlock.from_etree_10(etree_xml)
     
     @staticmethod
     def from_dict_10(d):
@@ -1167,7 +1172,10 @@ class DiscoveryResponse(TAXIIMessage):
         return xml
     
     def to_etree_11(self):
-        return self.to_etree_10()
+        xml = super(DiscoveryResponse, self).to_etree_11()
+        for service_instance in self.service_instances:
+            xml.append(service_instance.to_etree_11())
+        return xml
 
     def to_dict_10(self):
         d = super(DiscoveryResponse, self).to_dict_10()
@@ -1177,7 +1185,11 @@ class DiscoveryResponse(TAXIIMessage):
         return d
     
     def to_dict_11(self):
-        return self.to_dict_10()
+        d = super(DiscoveryResponse, self).to_dict_11()
+        d['service_instances'] = []
+        for service_instance in self.service_instances:
+            d['service_instances'].append(service_instance.to_dict_11())
+        return d
 
     def __eq__(self, other, debug=False):
         if not super(DiscoveryResponse, self).__eq__(other, debug):
@@ -1210,7 +1222,13 @@ class DiscoveryResponse(TAXIIMessage):
     
     @classmethod
     def from_etree_11(cls, etree_xml):
-        return DiscoveryResponse.from_etree_10(etree_xml)
+        msg = super(DiscoveryResponse, cls).from_etree_11(etree_xml)
+        msg.service_instances = []
+        service_instance_set = etree_xml.xpath('./taxii:Service_Instance', namespaces=ns_map)
+        for service_instance in service_instance_set:
+            si = DiscoveryResponse.ServiceInstance.from_etree_11(service_instance)
+            msg.service_instances.append(si)
+        return msg
 
     @classmethod
     def from_dict_10(cls, d):
@@ -1224,7 +1242,13 @@ class DiscoveryResponse(TAXIIMessage):
     
     @classmethod
     def from_dict_11(cls, d):
-        return DiscoveryResponse.from_dict_10(d)
+        msg = super(DiscoveryResponse, cls).from_dict_11(d)
+        msg.service_instances = []
+        service_instance_set = d['service_instances']
+        for service_instance in service_instance_set:
+            si = DiscoveryResponse.ServiceInstance.from_dict_11(service_instance)
+            msg.service_instances.append(si)
+        return msg
 
     class ServiceInstance(BaseNonMessage):
 
@@ -1463,7 +1487,7 @@ class FeedInformationResponse(TAXIIMessage):
     
     @TAXIIMessage.in_response_to.setter
     def in_response_to(self, value):
-        _do_check(value, 'in_response_to', regex_tuple=_message_id_regex)
+        _do_check(value, 'in_response_to', regex_tuple=_uri_regex)
         self._in_response_to = value
     
     @property
@@ -1482,7 +1506,10 @@ class FeedInformationResponse(TAXIIMessage):
         return xml
     
     def to_etree_11(self):
-        return self.to_etree_10()
+        xml = super(FeedInformationResponse, self).to_etree_11()
+        for feed in self.feed_informations:
+            xml.append(feed.to_etree_11())
+        return xml
 
     def to_dict_10(self):
         d = super(FeedInformationResponse, self).to_dict_10()
@@ -1492,7 +1519,11 @@ class FeedInformationResponse(TAXIIMessage):
         return d
     
     def to_dict_11(self):
-        return self.to_dict_10()
+        d = super(FeedInformationResponse, self).to_dict_11()
+        d['feed_informations'] = []
+        for feed in self.feed_informations:
+            d['feed_informations'].append(feed.to_dict_11())
+        return d
 
     def __eq__(self, other, debug=False):
         if not super(FeedInformationResponse, self).__eq__(other, debug):
@@ -1519,7 +1550,12 @@ class FeedInformationResponse(TAXIIMessage):
 
     @classmethod
     def from_etree_11(cls, etree_xml):
-        return FeedInformationResponse.from_etree_10(etree_xml)
+        msg = super(FeedInformationResponse, cls).from_etree_11(etree_xml)
+        msg.feed_informations = []
+        feed_informations = etree_xml.xpath('./taxii:Feed', namespaces=ns_map)
+        for feed in feed_informations:
+            msg.feed_informations.append(FeedInformationResponse.FeedInformation.from_etree_11(feed))
+        return msg
     
     @classmethod
     def from_dict_10(cls, d):
@@ -1531,7 +1567,11 @@ class FeedInformationResponse(TAXIIMessage):
     
     @classmethod
     def from_dict_11(cls, d):
-        return FeedInformationResponse.from_dict_10(d)
+        msg = super(FeedInformationResponse, cls).from_dict_11(d)
+        msg.feed_informations = []
+        for feed in d['feed_informations']:
+            msg.feed_informations.append(FeedInformationResponse.FeedInformation.from_dict_11(feed))
+        return msg
 
     class FeedInformation(BaseNonMessage):
 
@@ -1644,6 +1684,9 @@ class FeedInformationResponse(TAXIIMessage):
                 f.append(subscription_method.to_etree_10())
 
             return f
+        
+        def to_etree_11(self):
+            return self.to_etree_10()
 
         def to_dict_10(self):
             d = {}
@@ -1662,6 +1705,9 @@ class FeedInformationResponse(TAXIIMessage):
             for subscription_method in self.subscription_methods:
                 d['subscription_methods'].append(subscription_method.to_dict_10())
             return d
+        
+        def to_dict_11(self):
+            return self.to_dict_10()
 
         def __eq__(self, other, debug=False):
             if not self._checkPropertiesEq(other, ['feed_name', 'feed_description', 'available'], debug):
@@ -1707,7 +1753,11 @@ class FeedInformationResponse(TAXIIMessage):
                 kwargs['subscription_methods'].append(FeedInformationResponse.FeedInformation.SubscriptionMethod.from_etree_10(subscription_elt))
 
             return FeedInformationResponse.FeedInformation(**kwargs)
-
+        
+        @staticmethod
+        def from_etree_11(etree_xml):
+            return FeedInformationResponse.FeedInformation.from_etree_10(etree_xml)
+        
         @staticmethod
         def from_dict_10(d):
             kwargs = {}
@@ -1732,7 +1782,11 @@ class FeedInformationResponse(TAXIIMessage):
                 kwargs['subscription_methods'].append(FeedInformationResponse.FeedInformation.SubscriptionMethod.from_dict_10(subscription_method))
 
             return FeedInformationResponse.FeedInformation(**kwargs)
-
+        
+        @staticmethod
+        def from_dict_11(d):
+            return FeedInformationResponse.FeedInformation.from_dict_10(d)
+        
         class PushMethod(BaseNonMessage):
             def __init__(self, push_protocol, push_message_bindings):
                 """Create a new PushMethod.
@@ -1774,6 +1828,9 @@ class FeedInformationResponse(TAXIIMessage):
                     b = etree.SubElement(x, '{%s}Message_Binding' % ns_map['taxii'])
                     b.text = binding
                 return x
+            
+            def to_etree_11(self):
+                return self.to_etree_10()
 
             def to_dict_10(self):
                 d = {}
@@ -1782,6 +1839,9 @@ class FeedInformationResponse(TAXIIMessage):
                 for binding in self.push_message_bindings:
                     d['push_message_bindings'].append(binding)
                 return d
+            
+            def to_dict_11(self):
+                return self.to_dict_10()
 
             def __eq__(self, other, debug=False):
                 if not self._checkPropertiesEq(other, ['push_protocol'], debug):
@@ -1803,10 +1863,18 @@ class FeedInformationResponse(TAXIIMessage):
                 for message_binding in message_binding_set:
                     kwargs['push_message_bindings'].append(message_binding.text)
                 return FeedInformationResponse.FeedInformation.PushMethod(**kwargs)
-
+            
+            @staticmethod
+            def from_etree_11(etree_xml):
+                return FeedInformationResponse.FeedInformation.PushMethod.from_etree_10(etree_xml)
+            
             @staticmethod
             def from_dict_10(d):
                 return FeedInformationResponse.FeedInformation.PushMethod(**d)
+            
+            @staticmethod
+            def from_dict_11(d):
+                return FeedInformationResponse.FeedInformation.PushMethod.from_dict_10(d)
 
         class PollingServiceInstance(BaseNonMessage):
             NAME = 'Polling_Service'
@@ -1854,6 +1922,9 @@ class FeedInformationResponse(TAXIIMessage):
                     b = etree.SubElement(x, '{%s}Message_Binding' % ns_map['taxii'])
                     b.text = binding
                 return x
+            
+            def to_etree_11(self):
+                return self.to_etree_10()
 
             def to_dict_10(self):
                 d = {}
@@ -1863,6 +1934,9 @@ class FeedInformationResponse(TAXIIMessage):
                 for binding in self.poll_message_bindings:
                     d['poll_message_bindings'].append(binding)
                 return d
+            
+            def to_dict_11(self):
+                return self.to_dict_10()
 
             def __eq__(self, other, debug=False):
                 if not self._checkPropertiesEq(other, ['poll_protocol', 'poll_address'], debug):
@@ -1884,10 +1958,18 @@ class FeedInformationResponse(TAXIIMessage):
                 for message_binding in message_binding_set:
                     bindings.append(message_binding.text)
                 return cls(protocol, addr, bindings)
-
+            
+            @classmethod
+            def from_etree_11(cls, etree_xml):
+                return cls.from_etree_10(etree_xml)
+            
             @classmethod
             def from_dict_10(cls, d):
                 return cls(**d)
+            
+            @classmethod
+            def from_dict_11(cls, d):
+                return cls.from_dict_10(d)
 
         class SubscriptionMethod(BaseNonMessage):
             NAME = 'Subscription_Service'
@@ -1935,6 +2017,9 @@ class FeedInformationResponse(TAXIIMessage):
                     b = etree.SubElement(x, '{%s}Message_Binding' % ns_map['taxii'])
                     b.text = binding
                 return x
+            
+            def to_etree_11(self):
+                return self.to_etree_10()
 
             def to_dict_10(self):
                 d = {}
@@ -1944,6 +2029,9 @@ class FeedInformationResponse(TAXIIMessage):
                 for binding in self.subscription_message_bindings:
                     d['subscription_message_bindings'].append(binding)
                 return d
+            
+            def to_dict_11(self):
+                return self.to_dict_10()
 
             def __eq__(self, other, debug=False):
                 if not self._checkPropertiesEq(other, ['subscription_protocol', 'subscription_address'], debug):
@@ -1965,10 +2053,18 @@ class FeedInformationResponse(TAXIIMessage):
                 for message_binding in message_binding_set:
                     bindings.append(message_binding.text)
                 return cls(protocol, addr, bindings)
+            
+            @classmethod
+            def from_etree_11(cls, etree_xml):
+                return cls.from_etree_10(etree_xml)
 
             @classmethod
             def from_dict_10(cls, d):
                 return cls(**d)
+            
+            @classmethod
+            def from_dict_11(cls, d):
+                return cls.from_dict_10(d)
 
 
 class PollRequest(TAXIIMessage):
@@ -2082,9 +2178,45 @@ class PollRequest(TAXIIMessage):
             b.text = binding
 
         return xml
+    
+    def to_etree_11(self):
+        xml = super(PollRequest, self).to_etree_11()
+        xml.attrib['feed_name'] = self.feed_name
+        if self.subscription_id is not None:
+            xml.attrib['subscription_id'] = self.subscription_id
+
+        if self.exclusive_begin_timestamp_label is not None:
+            ebt = etree.SubElement(xml, '{%s}Exclusive_Begin_Timestamp' % ns_map['taxii'])
+            #TODO: Add TZ Info
+            ebt.text = self.exclusive_begin_timestamp_label.isoformat()
+
+        if self.inclusive_end_timestamp_label is not None:
+            iet = etree.SubElement(xml, '{%s}Inclusive_End_Timestamp' % ns_map['taxii'])
+            #TODO: Add TZ Info
+            iet.text = self.inclusive_end_timestamp_label.isoformat()
+
+        for binding in self.content_bindings:
+            b = etree.SubElement(xml, '{%s}Content_Binding' % ns_map['taxii'])
+            b.text = binding
+
+        return xml
 
     def to_dict_10(self):
         d = super(PollRequest, self).to_dict_10()
+        d['feed_name'] = self.feed_name
+        if self.subscription_id is not None:
+            d['subscription_id'] = self.subscription_id
+        if self.exclusive_begin_timestamp_label is not None:  # TODO: Add TZ Info
+            d['exclusive_begin_timestamp_label'] = self.exclusive_begin_timestamp_label.isoformat()
+        if self.inclusive_end_timestamp_label is not None:  # TODO: Add TZ Info
+            d['inclusive_end_timestamp_label'] = self.inclusive_end_timestamp_label.isoformat()
+        d['content_bindings'] = []
+        for bind in self.content_bindings:
+            d['content_bindings'].append(bind)
+        return d
+    
+    def to_dict_11(self):
+        d = super(PollRequest, self).to_dict_11()
         d['feed_name'] = self.feed_name
         if self.subscription_id is not None:
             d['subscription_id'] = self.subscription_id
@@ -2137,7 +2269,34 @@ class PollRequest(TAXIIMessage):
 
         msg = super(PollRequest, cls).from_etree_10(etree_xml, **kwargs)
         return msg
+    
+    @classmethod
+    def from_etree_11(cls, etree_xml):
+        kwargs = {}
+        kwargs['feed_name'] = etree_xml.xpath('./@feed_name', namespaces=ns_map)[0]
+        kwargs['subscription_id'] = None
+        subscription_id_set = etree_xml.xpath('./@subscription_id', namespaces=ns_map)
+        if len(subscription_id_set) > 0:
+            kwargs['subscription_id'] = subscription_id_set[0]
 
+        kwargs['exclusive_begin_timestamp_label'] = None
+        begin_ts_set = etree_xml.xpath('./taxii:Exclusive_Begin_Timestamp', namespaces=ns_map)
+        if len(begin_ts_set) > 0:
+            kwargs['exclusive_begin_timestamp_label'] = _str2datetime(begin_ts_set[0].text)
+
+        kwargs['inclusive_end_timestamp_label'] = None
+        end_ts_set = etree_xml.xpath('./taxii:Inclusive_End_Timestamp', namespaces=ns_map)
+        if len(end_ts_set) > 0:
+            kwargs['inclusive_end_timestamp_label'] = _str2datetime(end_ts_set[0].text)
+
+        kwargs['content_bindings'] = []
+        content_binding_set = etree_xml.xpath('./taxii:Content_Binding', namespaces=ns_map)
+        for binding in content_binding_set:
+            kwargs['content_bindings'].append(binding.text)
+
+        msg = super(PollRequest, cls).from_etree_11(etree_xml, **kwargs)
+        return msg
+    
     @classmethod
     def from_dict_10(cls, d):
         kwargs = {}
@@ -2157,6 +2316,26 @@ class PollRequest(TAXIIMessage):
 
         msg = super(PollRequest, cls).from_dict_10(d, **kwargs)
         return msg
+    
+    @classmethod
+    def from_dict_11(cls, d):
+        kwargs = {}
+        kwargs['feed_name'] = d['feed_name']
+
+        kwargs['subscription_id'] = d.get('subscription_id')
+
+        kwargs['exclusive_begin_timestamp_label'] = None
+        if 'exclusive_begin_timestamp_label' in d:
+            kwargs['exclusive_begin_timestamp_label'] = _str2datetime(d['exclusive_begin_timestamp_label'])
+
+        kwargs['inclusive_end_timestamp_label'] = None
+        if 'inclusive_end_timestamp_label' in d:
+            kwargs['inclusive_end_timestamp_label'] = _str2datetime(d['inclusive_end_timestamp_label'])
+
+        kwargs['content_bindings'] = d.get('content_bindings', [])
+
+        msg = super(PollRequest, cls).from_dict_11(d, **kwargs)
+        return msg
 
 
 class PollResponse(TAXIIMessage):
@@ -2171,7 +2350,8 @@ class PollResponse(TAXIIMessage):
                  inclusive_end_timestamp_label=None,
                  subscription_id=None,
                  message=None,
-                 content_blocks=None
+                 content_blocks=None,
+                 exclusive_begin_timestamp_label=None,#New in TAXII 1.1, supersedes inclusive_begin_timestamp_label
                  ):
         """Create a new PollResponse:
 
@@ -2195,6 +2375,7 @@ class PollResponse(TAXIIMessage):
         super(PollResponse, self).__init__(message_id, in_response_to, extended_headers)
         self.feed_name = feed_name
         self.inclusive_end_timestamp_label = inclusive_end_timestamp_label
+        self.exclusive_begin_timestamp_label = exclusive_begin_timestamp_label
         self.inclusive_begin_timestamp_label = inclusive_begin_timestamp_label
         self.subscription_id = subscription_id
         self.message = message
@@ -2233,6 +2414,15 @@ class PollResponse(TAXIIMessage):
         self._inclusive_begin_timestamp_label = value
     
     @property
+    def exclusive_begin_timestamp_label(self):
+        return self._exclusive_begin_timestamp_label
+    
+    @exclusive_begin_timestamp_label.setter
+    def exclusive_begin_timestamp_label(self, value):
+        _check_timestamplabel(value, 'exclusive_begin_timestamp_label', can_be_none=True)
+        self._exclusive_begin_timestamp_label = value
+    
+    @property
     def subscription_id(self):
         return self._subscription_id
     
@@ -2263,7 +2453,8 @@ class PollResponse(TAXIIMessage):
         if self.inclusive_begin_timestamp_label is not None:
             ibt = etree.SubElement(xml, '{%s}Inclusive_Begin_Timestamp' % ns_map['taxii'])
             ibt.text = self.inclusive_begin_timestamp_label.isoformat()
-
+        elif self.inclusive_begin_timestamp_label is None and self.exclusive_begin_timestamp_label is not None:
+            print 'Warning: exclusive_begin_timestamp_label is set and inclusive_begin_timestamp_label is not. Did you mean to set inclusive_begin_timestamp_label?'
         iet = etree.SubElement(xml, '{%s}Inclusive_End_Timestamp' % ns_map['taxii'])
         iet.text = self.inclusive_end_timestamp_label.isoformat()
 
@@ -2271,7 +2462,31 @@ class PollResponse(TAXIIMessage):
             xml.append(block.to_etree_10())
 
         return xml
+    
+    def to_etree_11(self):
+        xml = super(PollResponse, self).to_etree_11()
+        xml.attrib['feed_name'] = self.feed_name
+        if self.subscription_id is not None:
+            xml.attrib['subscription_id'] = self.subscription_id
 
+        if self.message is not None:
+            m = etree.SubElement(xml, '{%s}Message' % ns_map['taxii'])
+            m.text = self.message
+
+        if self.exclusive_begin_timestamp_label is not None:
+            ibt = etree.SubElement(xml, '{%s}Exclusive_Begin_Timestamp' % ns_map['taxii'])
+            ibt.text = self.exclusive_begin_timestamp_label.isoformat()
+        elif self.exclusive_begin_timestamp_label is None and self.inclusive_begin_timestamp_label is not None:
+            print 'Warning: inclusive_begin_timestamp_label is set and exclusive_begin_timestamp_label is not. Did you mean to set exclusive_begin_timestamp_label?'
+
+        iet = etree.SubElement(xml, '{%s}Inclusive_End_Timestamp' % ns_map['taxii'])
+        iet.text = self.inclusive_end_timestamp_label.isoformat()
+
+        for block in self.content_blocks:
+            xml.append(block.to_etree_11())
+
+        return xml
+    
     def to_dict_10(self):
         d = super(PollResponse, self).to_dict_10()
 
@@ -2282,10 +2497,31 @@ class PollResponse(TAXIIMessage):
             d['message'] = self.message
         if self.inclusive_begin_timestamp_label is not None:
             d['inclusive_begin_timestamp_label'] = self.inclusive_begin_timestamp_label.isoformat()
+        elif self.inclusive_begin_timestamp_label is None and self.exclusive_begin_timestamp_label is not None:
+            print 'Warning: exclusive_begin_timestamp_label is set and inclusive_begin_timestamp_label is not. Did you mean to set inclusive_begin_timestamp_label?'
         d['inclusive_end_timestamp_label'] = self.inclusive_end_timestamp_label.isoformat()
         d['content_blocks'] = []
         for block in self.content_blocks:
             d['content_blocks'].append(block.to_dict_10())
+
+        return d
+    
+    def to_dict_11(self):
+        d = super(PollResponse, self).to_dict_11()
+
+        d['feed_name'] = self.feed_name
+        if self.subscription_id is not None:
+            d['subscription_id'] = self.subscription_id
+        if self.message is not None:
+            d['message'] = self.message
+        if self.exclusive_begin_timestamp_label is not None:
+            d['exclusive_begin_timestamp_label'] = self.exclusive_begin_timestamp_label.isoformat()
+        elif self.exclusive_begin_timestamp_label is None and self.inclusive_begin_timestamp_label is not None:
+            print 'Warning: inclusive_begin_timestamp_label is set and exclusive_begin_timestamp_label is not. Did you mean to set exclusive_begin_timestamp_label?'
+        d['inclusive_end_timestamp_label'] = self.inclusive_end_timestamp_label.isoformat()
+        d['content_blocks'] = []
+        for block in self.content_blocks:
+            d['content_blocks'].append(block.to_dict_11())
 
         return d
 
@@ -2330,7 +2566,38 @@ class PollResponse(TAXIIMessage):
 
         msg = super(PollResponse, cls).from_etree_10(etree_xml, **kwargs)
         return msg
+    
+    @classmethod
+    def from_etree_11(cls, etree_xml):
+        kwargs = {}
+        
+        kwargs['feed_name'] = etree_xml.xpath('./@feed_name', namespaces=ns_map)[0]
 
+        kwargs['subscription_id'] = None
+        subs_ids = etree_xml.xpath('./@subscription_id', namespaces=ns_map)
+        if len(subs_ids) > 0:
+            kwargs['subscription_id'] = subs_ids[0]
+
+        kwargs['message'] = None
+        messages = etree_xml.xpath('./taxii:Message', namespaces=ns_map)
+        if len(messages) > 0:
+            kwargs['message'] = messages[0].text
+
+        kwargs['exclusive_begin_timestamp_label'] = None
+        ibts = etree_xml.xpath('./taxii:Exclusive_Begin_Timestamp', namespaces=ns_map)
+        if len(ibts) > 0:
+            kwargs['exclusive_begin_timestamp_label'] = _str2datetime(ibts[0].text)
+
+        kwargs['inclusive_end_timestamp_label'] = _str2datetime(etree_xml.xpath('./taxii:Inclusive_End_Timestamp', namespaces=ns_map)[0].text)
+
+        kwargs['content_blocks'] = []
+        blocks = etree_xml.xpath('./taxii:Content_Block', namespaces=ns_map)
+        for block in blocks:
+            kwargs['content_blocks'].append(ContentBlock.from_etree_10(block))
+
+        msg = super(PollResponse, cls).from_etree_11(etree_xml, **kwargs)
+        return msg
+    
     @classmethod
     def from_dict_10(cls, d):
         kwargs = {}
@@ -2353,12 +2620,40 @@ class PollResponse(TAXIIMessage):
             kwargs['content_blocks'].append(ContentBlock.from_dict_10(block))
         msg = super(PollResponse, cls).from_dict_10(d, **kwargs)
         return msg
+    
+    @classmethod
+    def from_dict_11(cls, d):
+        kwargs = {}
+        kwargs['feed_name'] = d['feed_name']
 
+        kwargs['message'] = None
+        if 'message' in d:
+            kwargs['message'] = d['message']
+
+        kwargs['subscription_id'] = d.get('subscription_id')
+
+        kwargs['exclusive_begin_timestamp_label'] = None
+        if 'exclusive_begin_timestamp_label' in d:
+            kwargs['exclusive_begin_timestamp_label'] = _str2datetime(d['exclusive_begin_timestamp_label'])
+
+        kwargs['inclusive_end_timestamp_label'] = _str2datetime(d['inclusive_end_timestamp_label'])
+
+        kwargs['content_blocks'] = []
+        for block in d['content_blocks']:
+            kwargs['content_blocks'].append(ContentBlock.from_dict_10(block))
+        msg = super(PollResponse, cls).from_dict_11(d, **kwargs)
+        return msg
 
 class StatusMessage(TAXIIMessage):
     message_type = MSG_STATUS_MESSAGE
 
-    def __init__(self, message_id, in_response_to, extended_headers=None, status_type=None, status_detail=None, message=None):
+    def __init__(self, 
+                 message_id, 
+                 in_response_to, 
+                 extended_headers=None, 
+                 status_type=None, 
+                 status_detail=None, 
+                 message=None):
         """Create a new StatusMessage.
 
         Arguments:
@@ -2398,6 +2693,7 @@ class StatusMessage(TAXIIMessage):
     
     def to_etree_10(self):
         xml = super(StatusMessage, self).to_etree_10()
+        _do_check(self.status_type, 'status_type', value_tuple=ST_TYPES_10)
         xml.attrib['status_type'] = self.status_type
 
         if self.status_detail is not None:
@@ -2409,9 +2705,34 @@ class StatusMessage(TAXIIMessage):
             m.text = self.message
 
         return xml
+    
+    def to_etree_11(self):
+        xml = super(StatusMessage, self).to_etree_11()
+        xml.attrib['status_type'] = self.status_type
 
+        if self.status_detail is not None:
+            sd = etree.SubElement(xml, '{%s}Status_Detail' % ns_map['taxii'])
+            sd.text = self.status_detail
+
+        if self.message is not None:
+            m = etree.SubElement(xml, '{%s}Message' % ns_map['taxii'])
+            m.text = self.message
+
+        return xml
+    
     def to_dict_10(self):
         d = super(StatusMessage, self).to_dict_10()
+        _do_check(self.status_type, 'status_type', value_tuple=ST_TYPES_10)
+        d['status_type'] = self.status_type
+        if self.status_detail is not None:
+            d['status_detail'] = self.status_detail
+        if self.message is not None:
+            d['message'] = self.message
+            d['message'] = self.message
+        return d
+    
+    def to_dict_11(self):
+        d = super(StatusMessage, self).to_dict_11()
         d['status_type'] = self.status_type
         if self.status_detail is not None:
             d['status_detail'] = self.status_detail
@@ -2444,7 +2765,26 @@ class StatusMessage(TAXIIMessage):
             
         msg = super(StatusMessage, cls).from_etree_10(etree_xml, **kwargs)
         return msg
+    
+    @classmethod
+    def from_etree_11(cls, etree_xml):
+        kwargs = {}
+        
+        kwargs['status_type'] = etree_xml.attrib['status_type']
 
+        kwargs['status_detail'] = None
+        sd_set = etree_xml.xpath('./taxii:Status_Detail', namespaces=ns_map)
+        if len(sd_set) > 0:
+            kwargs['status_detail'] = sd_set[0].text
+
+        kwargs['message'] = None
+        m_set = etree_xml.xpath('./taxii:Message', namespaces=ns_map)
+        if len(m_set) > 0:
+            kwargs['message'] = m_set[0].text
+            
+        msg = super(StatusMessage, cls).from_etree_11(etree_xml, **kwargs)
+        return msg
+    
     @classmethod
     def from_dict_10(cls, d):
         kwargs = {}
@@ -2454,12 +2794,28 @@ class StatusMessage(TAXIIMessage):
             
         msg = super(StatusMessage, cls).from_dict_10(d, **kwargs)
         return msg
-
+    
+    @classmethod
+    def from_dict_11(cls, d):
+        kwargs = {}
+        kwargs['status_type'] = d['status_type']
+        kwargs['status_detail'] = d.get('status_detail')
+        kwargs['message'] = d.get('message')
+            
+        msg = super(StatusMessage, cls).from_dict_11(d, **kwargs)
+        return msg
 
 class InboxMessage(TAXIIMessage):
     message_type = MSG_INBOX_MESSAGE
 
-    def __init__(self, message_id, in_response_to=None, extended_headers=None, message=None, subscription_information=None, content_blocks=None, destination_feed_name=None):
+    def __init__(self, 
+                 message_id, 
+                 in_response_to=None, 
+                 extended_headers=None, 
+                 message=None, 
+                 subscription_information=None, 
+                 content_blocks=None, 
+                 destination_feed_names=None):#Destination Feed Name is new in TAXII 1.1
         """Create a new InboxMessage.
 
         Arguments:
@@ -2476,7 +2832,7 @@ class InboxMessage(TAXIIMessage):
         self.subscription_information = subscription_information
         self.message = message
         self.content_blocks = content_blocks or []
-        self.destination_feed_name = destination_feed_name or []
+        self.destination_feed_names = destination_feed_names or []
     
     @TAXIIMessage.in_response_to.setter
     def in_response_to(self, value):
@@ -2502,8 +2858,21 @@ class InboxMessage(TAXIIMessage):
         _do_check(value, 'content_blocks', type=ContentBlock)
         self._content_blocks = value
     
+    @property
+    def destination_feed_names(self):
+        return self._destination_feed_names
+    
+    @destination_feed_names.setter
+    def destination_feed_names(self, value):
+        _do_check(value, 'destination_feed_names', regex_tuple=_uri_regex)
+        self._destination_feed_names = value
+    
     def to_etree_10(self):
         xml = super(InboxMessage, self).to_etree_10()
+        
+        if len(self.destination_feed_names) > 0:
+                print 'Warning: destination_feed_names will be omitted!'
+        
         if self.message is not None:
             m = etree.SubElement(xml, '{%s}Message' % ns_map['taxii'])
             m.text = self.message
@@ -2515,9 +2884,32 @@ class InboxMessage(TAXIIMessage):
             xml.append(block.to_etree_10())
 
         return xml
+        
+    def to_etree_11(self):
+        xml = super(InboxMessage, self).to_etree_11()
+        
+        for destination_feed_name in self.destination_feed_names:
+            dfn = etree.SubElement(xml, '{%s}Destination_Feed_Name' % ns_map['taxii'])
+            dfn.text = destination_feed_name
+        
+        if self.message is not None:
+            m = etree.SubElement(xml, '{%s}Message' % ns_map['taxii'])
+            m.text = self.message
+
+        if self.subscription_information is not None:
+            xml.append(self.subscription_information.to_etree_11())
+
+        for block in self.content_blocks:
+            xml.append(block.to_etree_11())
+
+        return xml
 
     def to_dict_10(self):
         d = super(InboxMessage, self).to_dict_10()
+        
+        if len(self.destination_feed_names) > 0:
+                print 'Warning: destination_feed_names will be omitted!'
+        
         if self.message is not None:
             d['message'] = self.message
 
@@ -2527,6 +2919,25 @@ class InboxMessage(TAXIIMessage):
         d['content_blocks'] = []
         for block in self.content_blocks:
             d['content_blocks'].append(block.to_dict_10())
+
+        return d
+    
+    def to_dict_11(self):
+        d = super(InboxMessage, self).to_dict_11()
+        
+        d['destination_feed_names'] = []
+        for destination_feed_name in self.destination_feed_names:
+            d['destination_feed_names'].append(destination_feed_name)
+        
+        if self.message is not None:
+            d['message'] = self.message
+
+        if self.subscription_information is not None:
+            d['subscription_information'] = self.subscription_information.to_dict_11()
+
+        d['content_blocks'] = []
+        for block in self.content_blocks:
+            d['content_blocks'].append(block.to_dict_11())
 
         return d
 
@@ -2572,6 +2983,30 @@ class InboxMessage(TAXIIMessage):
         return msg
 
     @classmethod
+    def from_etree_11(cls, etree_xml):
+        msg = super(InboxMessage, cls).from_etree_11(etree_xml)
+        
+        dfn_set = etree_xml.xpath('./taxii:Destination_Feed_Name', namespaces=ns_map)
+        for dfn in dfn_set:
+            msg.destination_feed_names.append(dfn.text)
+        
+        msg_set = etree_xml.xpath('./taxii:Message', namespaces=ns_map)
+        if len(msg_set) > 0:
+            msg.message = msg_set[0].text
+
+        subs_infos = etree_xml.xpath('./taxii:Source_Subscription', namespaces=ns_map)
+        if len(subs_infos) > 0:
+            msg.subscription_information = InboxMessage.SubscriptionInformation.from_etree_11(subs_infos[0])
+
+        content_blocks = etree_xml.xpath('./taxii:Content_Block', namespaces=ns_map)
+        msg.content_blocks = []
+        for block in content_blocks:
+            msg.content_blocks.append(ContentBlock.from_etree_11(block))
+
+        return msg
+    
+    
+    @classmethod
     def from_dict_10(cls, d):
         msg = super(InboxMessage, cls).from_dict_10(d)
 
@@ -2586,10 +3021,34 @@ class InboxMessage(TAXIIMessage):
             msg.content_blocks.append(ContentBlock.from_dict_10(block))
 
         return msg
+    
+    @classmethod
+    def from_dict_11(cls, d):
+        msg = super(InboxMessage, cls).from_dict_11(d)
+        
+        for dfn in d['destination_feed_names']:
+            msg.destination_feed_names.append(dfn)
+        
+        msg.message = d.get('message')
+
+        msg.subscription_information = None
+        if 'subscription_information' in d:
+            msg.subscription_information = InboxMessage.SubscriptionInformation.from_dict_11(d['subscription_information'])
+
+        msg.content_blocks = []
+        for block in d['content_blocks']:
+            msg.content_blocks.append(ContentBlock.from_dict_11(block))
+
+        return msg
 
     class SubscriptionInformation(BaseNonMessage):
 
-        def __init__(self, feed_name, subscription_id, inclusive_begin_timestamp_label, inclusive_end_timestamp_label):
+        def __init__(self, 
+                     feed_name, 
+                     subscription_id, 
+                     inclusive_begin_timestamp_label=None,
+                     inclusive_end_timestamp_label=None,
+                     exclusive_begin_timestamp_label=None):#New in 1.1
             """Create a new SubscriptionInformation.
 
             Arguments:
@@ -2607,6 +3066,7 @@ class InboxMessage(TAXIIMessage):
             self.subscription_id = subscription_id
             self.inclusive_begin_timestamp_label = inclusive_begin_timestamp_label
             self.inclusive_end_timestamp_label = inclusive_end_timestamp_label
+            self.exclusive_begin_timestamp_label = exclusive_begin_timestamp_label
 
         
         @property
@@ -2633,8 +3093,17 @@ class InboxMessage(TAXIIMessage):
         
         @inclusive_begin_timestamp_label.setter
         def inclusive_begin_timestamp_label(self, value):
-            _check_timestamplabel(value, 'inclusive_begin_timestamp_label')
+            _check_timestamplabel(value, 'inclusive_begin_timestamp_label', can_be_none=True)
             self._inclusive_begin_timestamp_label = value
+        
+        @property
+        def exclusive_begin_timestamp_label(self):
+            return self._exclusive_begin_timestamp_label
+        
+        @exclusive_begin_timestamp_label.setter
+        def exclusive_begin_timestamp_label(self, value):
+            _check_timestamplabel(value, 'exclusive_begin_timestamp_label', can_be_none=True)
+            self._exclusive_begin_timestamp_label = value
         
         @property
         def inclusive_end_timestamp_label(self):
@@ -2649,10 +3118,29 @@ class InboxMessage(TAXIIMessage):
             xml = etree.Element('{%s}Source_Subscription' % ns_map['taxii'])
             xml.attrib['feed_name'] = self.feed_name
             xml.attrib['subscription_id'] = self.subscription_id
+            
+            if self.inclusive_begin_timestamp_label is not None:
+                ibtl = etree.SubElement(xml, '{%s}Inclusive_Begin_Timestamp' % ns_map['taxii'])
+                ibtl.text = self.inclusive_begin_timestamp_label.isoformat()
+            elif self.inclusive_begin_timestamp_label is None and self.exclusive_begin_timestamp_label is not None:
+                print 'Warning: exclusive_begin_timestamp_label is set and inclusive_begin_timestamp_label is not. Did you mean to set inclusive_begin_timestamp_label?'
+            
+            ietl = etree.SubElement(xml, '{%s}Inclusive_End_Timestamp' % ns_map['taxii'])
+            ietl.text = self.inclusive_end_timestamp_label.isoformat()
 
-            ibtl = etree.SubElement(xml, '{%s}Inclusive_Begin_Timestamp' % ns_map['taxii'])
-            ibtl.text = self.inclusive_begin_timestamp_label.isoformat()
+            return xml
+        
+        def to_etree_11(self):
+            xml = etree.Element('{%s}Source_Subscription' % ns_map['taxii'])
+            xml.attrib['feed_name'] = self.feed_name
+            xml.attrib['subscription_id'] = self.subscription_id
 
+            if self.exclusive_begin_timestamp_label is not None:
+                ibtl = etree.SubElement(xml, '{%s}Exclusive_Begin_Timestamp' % ns_map['taxii'])
+                ibtl.text = self.exclusive_begin_timestamp_label.isoformat()
+            elif self.exclusive_begin_timestamp_label is None and self.inclusive_begin_timestamp_label is not None:
+                print 'Warning: inclusive_begin_timestamp_label is set and exclusive_begin_timestamp_label is not. Did you mean to set exclusive_begin_timestamp_label?'
+            
             ietl = etree.SubElement(xml, '{%s}Inclusive_End_Timestamp' % ns_map['taxii'])
             ietl.text = self.inclusive_end_timestamp_label.isoformat()
 
@@ -2662,7 +3150,23 @@ class InboxMessage(TAXIIMessage):
             d = {}
             d['feed_name'] = self.feed_name
             d['subscription_id'] = self.subscription_id
-            d['inclusive_begin_timestamp_label'] = self.inclusive_begin_timestamp_label.isoformat()
+            
+            if self.inclusive_begin_timestamp_label is not None:
+                d['inclusive_begin_timestamp_label'] = self.inclusive_begin_timestamp_label.isoformat()
+            elif self.inclusive_begin_timestamp_label is None and self.exclusive_begin_timestamp_label is not None:
+                print 'Warning: exclusive_begin_timestamp_label is set and inclusive_begin_timestamp_label is not. Did you mean to set inclusive_begin_timestamp_label?'
+            
+            d['inclusive_end_timestamp_label'] = self.inclusive_end_timestamp_label.isoformat()
+            return d
+        
+        def to_dict_11(self):
+            d = {}
+            d['feed_name'] = self.feed_name
+            d['subscription_id'] = self.subscription_id
+            if self.exclusive_begin_timestamp_label is not None:
+                d['exclusive_begin_timestamp_label'] = self.exclusive_begin_timestamp_label.isoformat()
+            elif self.exclusive_begin_timestamp_label is None and self.inclusive_begin_timestamp_label is not None:
+                print 'Warning: inclusive_begin_timestamp_label is set and exclusive_begin_timestamp_label is not. Did you mean to set exclusive_begin_timestamp_label?'
             d['inclusive_end_timestamp_label'] = self.inclusive_end_timestamp_label.isoformat()
             return d
 
@@ -2678,7 +3182,20 @@ class InboxMessage(TAXIIMessage):
             ietl = _str2datetime(etree_xml.xpath('./taxii:Inclusive_End_Timestamp', namespaces=ns_map)[0].text)
 
             return InboxMessage.SubscriptionInformation(feed_name, subscription_id, ibtl, ietl)
+        
+        @staticmethod
+        def from_etree_11(etree_xml):
+            feed_name = etree_xml.attrib['feed_name']
+            subscription_id = etree_xml.attrib['subscription_id']
 
+            ebtl_set = etree_xml.xpath('./taxii:Exclusive_Begin_Timestamp', namespaces=ns_map)
+            ebtl = None
+            if len(ebtl_set) > 0:
+                ebtl = _str2datetime(ebtl_set[0].text)
+            ietl = _str2datetime(etree_xml.xpath('./taxii:Inclusive_End_Timestamp', namespaces=ns_map)[0].text)
+
+            return InboxMessage.SubscriptionInformation(feed_name, subscription_id, ebtl, ietl)
+        
         @staticmethod
         def from_dict_10(d):
             feed_name = d['feed_name']
@@ -2688,7 +3205,17 @@ class InboxMessage(TAXIIMessage):
             ietl = _str2datetime(d['inclusive_end_timestamp_label'])
 
             return InboxMessage.SubscriptionInformation(feed_name, subscription_id, ibtl, ietl)
+        
+        @staticmethod
+        def from_dict_11(d):
+            feed_name = d['feed_name']
+            subscription_id = d['subscription_id']
+            ebtl = None
+            if 'exclusive_begin_timestamp_label' in d:
+                ebtl = _str2datetime(d['exclusive_begin_timestamp_label'])
+            ietl = _str2datetime(d['inclusive_end_timestamp_label'])
 
+            return InboxMessage.SubscriptionInformation(feed_name, subscription_id, exclusive_begin_timestamp_label=ebtl, inclusive_end_timestamp_label=ietl)
 
 class ManageFeedSubscriptionRequest(TAXIIMessage):
     message_type = MSG_MANAGE_FEED_SUBSCRIPTION_REQUEST
@@ -2759,17 +3286,35 @@ class ManageFeedSubscriptionRequest(TAXIIMessage):
     def to_etree_10(self):
         xml = super(ManageFeedSubscriptionRequest, self).to_etree_10()
         xml.attrib['feed_name'] = self.feed_name
+        _do_check(self.action, 'action', value_tuple=ACT_TYPES_10)
         xml.attrib['action'] = self.action
         xml.attrib['subscription_id'] = self.subscription_id
         xml.append(self.delivery_parameters.to_etree_10())
+        return xml
+    
+    def to_etree_11(self):
+        xml = super(ManageFeedSubscriptionRequest, self).to_etree_11()
+        xml.attrib['feed_name'] = self.feed_name
+        xml.attrib['action'] = self.action
+        xml.attrib['subscription_id'] = self.subscription_id
+        xml.append(self.delivery_parameters.to_etree_11())
         return xml
 
     def to_dict_10(self):
         d = super(ManageFeedSubscriptionRequest, self).to_dict_10()
         d['feed_name'] = self.feed_name
+        _do_check(self.action, 'action', value_tuple=ACT_TYPES_10)
         d['action'] = self.action
         d['subscription_id'] = self.subscription_id
         d['delivery_parameters'] = self.delivery_parameters.to_dict_10()
+        return d
+    
+    def to_dict_11(self):
+        d = super(ManageFeedSubscriptionRequest, self).to_dict_11()
+        d['feed_name'] = self.feed_name
+        d['action'] = self.action
+        d['subscription_id'] = self.subscription_id
+        d['delivery_parameters'] = self.delivery_parameters.to_dict_11()
         return d
 
     def __eq__(self, other, debug=False):
@@ -2783,10 +3328,22 @@ class ManageFeedSubscriptionRequest(TAXIIMessage):
         kwargs = {}
         kwargs['feed_name'] = etree_xml.xpath('./@feed_name', namespaces=ns_map)[0]
         kwargs['action'] = etree_xml.xpath('./@action', namespaces=ns_map)[0]
+        _do_check(kwargs['action'], 'action', value_tuple=ACT_TYPES_10)
         kwargs['subscription_id'] = etree_xml.xpath('./@subscription_id', namespaces=ns_map)[0]
         kwargs['delivery_parameters'] = DeliveryParameters.from_etree_10(etree_xml.xpath('./taxii:Push_Parameters', namespaces=ns_map)[0])
         
         msg = super(ManageFeedSubscriptionRequest, cls).from_etree_10(etree_xml, **kwargs)
+        return msg
+    
+    @classmethod
+    def from_etree_11(cls, etree_xml):
+        kwargs = {}
+        kwargs['feed_name'] = etree_xml.xpath('./@feed_name', namespaces=ns_map)[0]
+        kwargs['action'] = etree_xml.xpath('./@action', namespaces=ns_map)[0]
+        kwargs['subscription_id'] = etree_xml.xpath('./@subscription_id', namespaces=ns_map)[0]
+        kwargs['delivery_parameters'] = DeliveryParameters.from_etree_11(etree_xml.xpath('./taxii:Push_Parameters', namespaces=ns_map)[0])
+        
+        msg = super(ManageFeedSubscriptionRequest, cls).from_etree_11(etree_xml, **kwargs)
         return msg
 
     @classmethod
@@ -2794,10 +3351,22 @@ class ManageFeedSubscriptionRequest(TAXIIMessage):
         kwargs = {}
         kwargs['feed_name'] = d['feed_name']
         kwargs['action'] = d['action']
+        _do_check(kwargs['action'], 'action', value_tuple=ACT_TYPES_10)
         kwargs['subscription_id'] = d['subscription_id']
         kwargs['delivery_parameters'] = DeliveryParameters.from_dict_10(d['delivery_parameters'])
         
         msg = super(ManageFeedSubscriptionRequest, cls).from_dict_10(d, **kwargs)
+        return msg
+    
+    @classmethod
+    def from_dict_11(cls, d):
+        kwargs = {}
+        kwargs['feed_name'] = d['feed_name']
+        kwargs['action'] = d['action']
+        kwargs['subscription_id'] = d['subscription_id']
+        kwargs['delivery_parameters'] = DeliveryParameters.from_dict_11(d['delivery_parameters'])
+        
+        msg = super(ManageFeedSubscriptionRequest, cls).from_dict_11(d, **kwargs)
         return msg
 
 
@@ -2858,6 +3427,18 @@ class ManageFeedSubscriptionResponse(TAXIIMessage):
             xml.append(subscription_instance.to_etree_10())
 
         return xml
+    
+    def to_etree_11(self):
+        xml = super(ManageFeedSubscriptionResponse, self).to_etree_11()
+        xml.attrib['feed_name'] = self.feed_name
+        if self.message is not None:
+            m = etree.SubElement(xml, '{%s}Message' % ns_map['taxii'])
+            m.text = self.message
+
+        for subscription_instance in self.subscription_instances:
+            xml.append(subscription_instance.to_etree_11())
+
+        return xml
 
     def to_dict_10(self):
         d = super(ManageFeedSubscriptionResponse, self).to_dict_10()
@@ -2867,6 +3448,17 @@ class ManageFeedSubscriptionResponse(TAXIIMessage):
         d['subscription_instances'] = []
         for subscription_instance in self.subscription_instances:
             d['subscription_instances'].append(subscription_instance.to_dict_10())
+
+        return d
+    
+    def to_dict_11(self):
+        d = super(ManageFeedSubscriptionResponse, self).to_dict_11()
+        d['feed_name'] = self.feed_name
+        if self.message is not None:
+            d['message'] = self.message
+        d['subscription_instances'] = []
+        for subscription_instance in self.subscription_instances:
+            d['subscription_instances'].append(subscription_instance.to_dict_11())
 
         return d
 
@@ -2903,7 +3495,25 @@ class ManageFeedSubscriptionResponse(TAXIIMessage):
             
         msg = super(ManageFeedSubscriptionResponse, cls).from_etree_10(etree_xml, **kwargs)
         return msg
+    
+    @classmethod
+    def from_etree_11(cls, etree_xml):
+        kwargs = {}
+        kwargs['feed_name'] = etree_xml.attrib['feed_name']
 
+        message_set = etree_xml.xpath('./taxii:Message', namespaces=ns_map)
+        if len(message_set) > 0:
+            kwargs['message'] = message_set[0].text
+
+        subscription_instance_set = etree_xml.xpath('./taxii:Subscription', namespaces=ns_map)
+
+        kwargs['subscription_instances'] = []
+        for si in subscription_instance_set:
+            kwargs['subscription_instances'].append(ManageFeedSubscriptionResponse.SubscriptionInstance.from_etree_11(si))
+            
+        msg = super(ManageFeedSubscriptionResponse, cls).from_etree_11(etree_xml, **kwargs)
+        return msg
+    
     @classmethod
     def from_dict_10(cls, d):
         kwargs = {}
@@ -2916,6 +3526,20 @@ class ManageFeedSubscriptionResponse(TAXIIMessage):
             kwargs['subscription_instances'].append(ManageFeedSubscriptionResponse.SubscriptionInstance.from_dict_10(instance))
 
         msg = super(ManageFeedSubscriptionResponse, cls).from_dict_10(d, **kwargs)
+        return msg
+    
+    @classmethod
+    def from_dict_11(cls, d):
+        kwargs = {}
+        kwargs['feed_name'] = d['feed_name']
+
+        kwargs['message'] = d.get('message')
+
+        kwargs['subscription_instances'] = []
+        for instance in d['subscription_instances']:
+            kwargs['subscription_instances'].append(ManageFeedSubscriptionResponse.SubscriptionInstance.from_dict_11(instance))
+
+        msg = super(ManageFeedSubscriptionResponse, cls).from_dict_11(d, **kwargs)
         return msg
 
     class SubscriptionInstance(BaseNonMessage):
@@ -2976,6 +3600,9 @@ class ManageFeedSubscriptionResponse(TAXIIMessage):
                 xml.append(poll_instance.to_etree_10())
 
             return xml
+        
+        def to_etree_11(self):
+            return self.to_etree_10()
 
         def to_dict_10(self):
             d = {}
@@ -2988,6 +3615,20 @@ class ManageFeedSubscriptionResponse(TAXIIMessage):
             d['poll_instances'] = []
             for poll_instance in self.poll_instances:
                 d['poll_instances'].append(poll_instance.to_dict_10())
+
+            return d
+        
+        def to_dict_11(self):
+            d = {}
+            d['subscription_id'] = self.subscription_id
+
+            d['delivery_parameters'] = []
+            for delivery_parameter in self.delivery_parameters:
+                d['delivery_parameters'].append(delivery_parameter.to_dict_11())
+
+            d['poll_instances'] = []
+            for poll_instance in self.poll_instances:
+                d['poll_instances'].append(poll_instance.to_dict_11())
 
             return d
 
@@ -3015,7 +3656,11 @@ class ManageFeedSubscriptionResponse(TAXIIMessage):
                 poll_instances.append(ManageFeedSubscriptionResponse.PollInstance.from_etree_10(poll_instance))
 
             return ManageFeedSubscriptionResponse.SubscriptionInstance(subscription_id, delivery_parameters, poll_instances)
-
+        
+        @staticmethod
+        def from_etree_11(etree_xml):
+            return ManageFeedSubscriptionResponse.SubscriptionInstance.from_etree_10(etree_xml)
+        
         @staticmethod
         def from_dict_10(d):
             subscription_id = d['subscription_id']
@@ -3029,6 +3674,10 @@ class ManageFeedSubscriptionResponse(TAXIIMessage):
                 poll_instances.append(ManageFeedSubscriptionResponse.PollInstance.from_dict_10(poll_instance))
 
             return ManageFeedSubscriptionResponse.SubscriptionInstance(subscription_id, delivery_parameters, poll_instances)
+        
+        @staticmethod
+        def from_dict_11(d):
+            return ManageFeedSubscriptionResponse.SubscriptionInstance.from_dict_10(d)
 
     class PollInstance:
 
@@ -3080,6 +3729,9 @@ class ManageFeedSubscriptionResponse(TAXIIMessage):
                 b.text = binding
 
             return xml
+        
+        def to_etree_11(self):
+            return self.to_etree_11()
 
         def to_dict_10(self):
             d = {}
@@ -3091,6 +3743,9 @@ class ManageFeedSubscriptionResponse(TAXIIMessage):
                 d['poll_message_bindings'].append(binding)
 
             return d
+        
+        def to_dict_11(self):
+            return self.to_dict_10()
 
         def __eq__(self, other, debug=True):
             if not self._checkPropertiesEq(other, ['poll_protocol', 'poll_address'], debug):
@@ -3112,7 +3767,15 @@ class ManageFeedSubscriptionResponse(TAXIIMessage):
                 poll_message_bindings.append(b.text)
 
             return ManageFeedSubscriptionResponse.PollInstance(poll_protocol, address, poll_message_bindings)
-
+        
+        @staticmethod
+        def from_etree_11(etree_xml):
+            return ManageFeedSubscriptionResponse.PollInstance.from_etree_10(etree_xml)
+        
         @staticmethod
         def from_dict_10(d):
             return ManageFeedSubscriptionResponse.PollInstance(**d)
+        
+        @staticmethod
+        def from_dict_11(d):
+            return ManageFeedSubscriptionResponse.PollInstance.from_dict_10(d)
